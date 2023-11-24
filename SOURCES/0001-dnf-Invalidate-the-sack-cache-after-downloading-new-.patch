@@ -1,0 +1,38 @@
+From cdbd27d699b51e37c533d07abd2f1ab26e11355c Mon Sep 17 00:00:00 2001
+From: Kalev Lember <klember@redhat.com>
+Date: Tue, 18 Dec 2018 01:02:27 +0100
+Subject: [PATCH] dnf: Invalidate the sack cache after downloading new metadata
+
+This fixes first resolve() after refresh() to correctly return the new
+data.
+
+https://bugzilla.redhat.com/show_bug.cgi?id=1642878
+---
+ backends/dnf/pk-backend-dnf.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/backends/dnf/pk-backend-dnf.c b/backends/dnf/pk-backend-dnf.c
+index 5961f1258..47e565915 100644
+--- a/backends/dnf/pk-backend-dnf.c
++++ b/backends/dnf/pk-backend-dnf.c
+@@ -1568,6 +1568,7 @@ pk_backend_refresh_cache_thread (PkBackendJob *job,
+ 				 gpointer user_data)
+ {
+ 	PkBackendDnfJobData *job_data = pk_backend_job_get_user_data (job);
++	PkBackend *backend = pk_backend_job_get_backend (job);
+ 	DnfRepo *repo;
+ 	DnfState *state_local;
+ 	DnfState *state_loop;
+@@ -1699,6 +1700,9 @@ pk_backend_refresh_cache_thread (PkBackendJob *job,
+ 		return;
+ 	}
+ 
++	/* invalidate the sack cache after downloading new metadata */
++	pk_backend_sack_cache_invalidate (backend, "downloaded new metadata");
++
+ 	/* regenerate the libsolv metadata */
+ 	state_local = dnf_state_get_child (job_data->state);
+ 	sack = dnf_utils_create_sack_for_filters (job, 0,
+-- 
+2.19.1
+

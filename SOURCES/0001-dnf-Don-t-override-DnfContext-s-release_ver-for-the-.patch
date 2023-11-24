@@ -1,0 +1,45 @@
+From be075445cafd370abf1ad3e6e85f2baebef056cb Mon Sep 17 00:00:00 2001
+From: Kalev Lember <klember@redhat.com>
+Date: Wed, 30 Jan 2019 15:37:21 +0100
+Subject: [PATCH] dnf: Don't override DnfContext's release_ver for the running
+ system
+
+Only override release_ver for the system upgrade DnfContext and leave it
+at the default value for the default context. This makes
+dnf_context_setup() automatically figure out the release_ver based on
+the running system: it looks at various provides in rpmdb and finally
+falls back to VERSION_ID from /etc/os-release.
+
+The goal here is to make it possible to adjust the value that gets
+passed to librepo by changing system-release(releasever) provides in
+fedora-release (which DnfContext correctly handles if we leave the
+release_ver set to the default value).
+
+https://pagure.io/releng/issue/7445
+---
+ backends/dnf/pk-backend-dnf.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/backends/dnf/pk-backend-dnf.c b/backends/dnf/pk-backend-dnf.c
+index 47e565915..779896c2d 100644
+--- a/backends/dnf/pk-backend-dnf.c
++++ b/backends/dnf/pk-backend-dnf.c
+@@ -156,7 +156,6 @@ pk_backend_setup_dnf_context (DnfContext *context, GKeyFile *conf, const gchar *
+ 	dnf_context_set_repo_dir (context, repo_dir);
+ 	lock_dir = g_build_filename (destdir, "/var/run", NULL);
+ 	dnf_context_set_lock_dir (context, lock_dir);
+-	dnf_context_set_release_ver (context, release_ver);
+ 	dnf_context_set_rpm_verbosity (context, "info");
+ 
+ 	/* use this initial data if repos are not present */
+@@ -3401,6 +3400,7 @@ pk_backend_upgrade_system_thread (PkBackendJob *job, GVariant *params, gpointer
+ 		g_autoptr(DnfContext) context = NULL;
+ 
+ 		context = dnf_context_new ();
++		dnf_context_set_release_ver (context, release_ver);
+ 		ret = pk_backend_setup_dnf_context (context, priv->conf, release_ver, &error);
+ 		if (!ret) {
+ 			g_debug ("failed to setup context: %s", error->message);
+-- 
+2.21.0
+
