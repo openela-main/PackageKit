@@ -14,7 +14,7 @@
 Summary:   Package management service
 Name:      PackageKit
 Version:   1.1.12
-Release:   6%{?dist}
+Release:   7%{?dist}
 License:   GPLv2+ and LGPLv2+
 URL:       http://www.freedesktop.org/software/PackageKit/
 Source0:   http://www.freedesktop.org/software/PackageKit/releases/%{name}-%{version}.tar.xz
@@ -34,6 +34,8 @@ Patch0:    rhel-Vendor.conf.patch
 Patch1:    0001-dnf-Invalidate-the-sack-cache-after-downloading-new-.patch
 Patch2:    0001-dnf-Don-t-override-DnfContext-s-release_ver-for-the-.patch
 Patch3:    0001-command-not-found-Don-t-use-a-bash-regex-to-fix-othe.patch
+Patch5:    0001-pk-transaction-Only-set-polkit-interactive-flag-if-t.patch
+Patch6:    0002-pk-engine-Only-set-polkit-interactive-flag-if-method.patch
 
 # https://bugzilla.redhat.com/show_bug.cgi?id=1814820
 Patch4:    revert-shutdown-on-idle.patch
@@ -338,6 +340,10 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %{_datadir}/vala/vapi/packagekit-glib2.vapi
 
 %changelog
+* Mon Apr 24 2023 Richard Hughes <rhughes@redhat.com> - 1.1.12-7
+- Backport changes for passing interactive flag to polkit calls.
+- Resolves: #2177711
+
 * Fri May 22 2020 Michael Catanzaro <mcatanzaro@redhat.com> - 1.1.12-6
 - Fix documentation links in Vendor.conf
 - Resolves: #1837648

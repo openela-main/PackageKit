@@ -1,0 +1,56 @@
+From 0a46c047512e36d454800602b3845be35eb2dafe Mon Sep 17 00:00:00 2001
+From: Philip Withnall <pwithnall@endlessos.org>
+Date: Sat, 1 May 2021 01:08:59 +0100
+Subject: [PATCH 1/2] pk-transaction: Only set polkit interactive flag if
+ transaction has too
+
+This should fix polkit dialogues popping up when doing background
+refresh operations, particularly for the
+`org.freedesktop.packagekit.system-sources-refresh` action.
+
+See
+https://gitlab.gnome.org/GNOME/gnome-software/-/issues/582#note_1095101.
+
+Note: This fix is only done through code inspection. I have not tried to
+reproduce the failure case, and not tested that this commit actually
+fixes it.
+
+Signed-off-by: Philip Withnall <pwithnall@endlessos.org>
+---
+ src/pk-transaction.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/src/pk-transaction.c b/src/pk-transaction.c
+index 83ee5588c..64b7def40 100644
+--- a/src/pk-transaction.c
++++ b/src/pk-transaction.c
+@@ -2252,6 +2252,7 @@ pk_transaction_authorize_actions (PkTransaction *transaction,
+ 	PkTransactionPrivate *priv = transaction->priv;
+ 	const gchar *text = NULL;
+ 	struct AuthorizeActionsData *data = NULL;
++	PolkitCheckAuthorizationFlags flags;
+ 
+ 	if (actions->len <= 0) {
+ 		g_debug ("No authentication required");
+@@ -2338,13 +2339,17 @@ pk_transaction_authorize_actions (PkTransaction *transaction,
+ 	data->role = role;
+ 	data->actions = g_ptr_array_ref (actions);
+ 
++	flags = POLKIT_CHECK_AUTHORIZATION_FLAGS_NONE;
++	if (pk_backend_job_get_interactive (priv->job))
++		flags |= POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION;
++
+ 	g_debug ("authorizing action %s", action_id);
+ 	/* do authorization async */
+ 	polkit_authority_check_authorization (priv->authority,
+ 					      priv->subject,
+ 					      action_id,
+ 					      details,
+-					      POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION,
++					      flags,
+ 					      priv->cancellable,
+ 					      (GAsyncReadyCallback) pk_transaction_authorize_actions_finished_cb,
+ 					      data);
+-- 
+2.40.0
+
