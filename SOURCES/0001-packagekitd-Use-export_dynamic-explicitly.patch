@@ -1,0 +1,28 @@
+From 70594bbe7b3c61b7f9fe58cb77ddaeb630e7276f Mon Sep 17 00:00:00 2001
+From: Dominique Leuenberger <dimstar@opensuse.org>
+Date: Mon, 17 Jul 2023 15:24:14 +0200
+Subject: [PATCH] packagekitd: Use export_dynamic explicitly
+
+We used to get that implicitly through GModule .pc file defining -Wl,--export-dynamic so that modules could reference symbols in the main executable.
+
+With newer GLib including glib@11bdd6fc the gmodule .pc file will no longer define this compiler flag in a way that works for us, resulting in errors like:
+packagekitd[2394]: Failed to load the backend: opening module zypp failed : /usr/lib64/packagekit-backend/libpk_backend_zypp.so: undefined symbol: pk_backend_job_require_restart
+---
+ src/meson.build | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/meson.build b/src/meson.build
+index cae73380e..a47169c2b 100644
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -76,6 +76,7 @@ packagekitd_exec = executable(
+   ],
+   install: true,
+   install_dir: get_option('libexecdir'),
++  export_dynamic: true,
+   c_args: [
+     '-DPK_BUILD_DAEMON=1',
+     '-DG_LOG_DOMAIN="PackageKit"',
+-- 
+2.41.0
+

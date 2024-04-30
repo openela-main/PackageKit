@@ -1,0 +1,156 @@
+From f42096ff2427a758eda9de2e3046714167a38c95 Mon Sep 17 00:00:00 2001
+From: Russell Haley <yumpusamongus@gmail.com>
+Date: Mon, 12 Sep 2022 12:36:10 -0500
+Subject: [PATCH] Revert "Revert "Shutdown the daemon on idle by default""
+
+This reverts commit dca1f5b2508a4632d0b9fefab771a5a9caf83a5c.
+
+Which reverted commit 0c84d71509e851db20445c747529bd7d3724f081,
+which reverted commit c6eb3555ec5b41e988c111d276764d55fb83bda3.
+
+Fixes #460.
+
+The memory usage of packagekitd has been observed growing well beyond
+half a GiB.  See:
+
+https://bugzilla.redhat.com/show_bug.cgi?id=1354074
+https://bugzilla.redhat.com/show_bug.cgi?id=1854875
+https://bugzilla.redhat.com/show_bug.cgi?id=1896964
+
+As I understand it, this timeout causes some slightly surprising
+behavior when users mix command line dnf upgades with GUI PackageKit
+upgrades, and do not manually run an update check before rebooting for
+update. But that is an edge case, and the price of not having it is too
+high.
+---
+ src/pk-main.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/src/pk-main.c b/src/pk-main.c
+index d372a7456..1de9a1390 100644
+--- a/src/pk-main.c
++++ b/src/pk-main.c
+@@ -183,6 +183,11 @@ main (int argc, char *argv[])
+ 
+ 	/* after how long do we timeout? */
+ 	exit_idle_time = g_key_file_get_integer (conf, "Daemon", "ShutdownTimeout", NULL);
++        /* THIS COMMENT IS A TSUNAMI STONE 
++         * Before removing the default timeout, please study the git history and
++         * be sure that you are not regressing Redhat bugzilla #1354074 (again). */
++	if (exit_idle_time == 0)
++		exit_idle_time = 300;
+ 	g_debug ("daemon shutdown set to %i seconds", exit_idle_time);
+ 
+ 	/* override the backend name */
+
+From ba378b8510133bbad081aebd15cfe2ae74fe1e8a Mon Sep 17 00:00:00 2001
+From: Gordon Messmer <gordon.messmer@gmail.com>
+Date: Sun, 15 Jan 2023 15:17:45 -0800
+Subject: [PATCH] valgrind warns that a conditional depends on an uninitialized
+ value.
+
+---
+ src/pk-main.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/pk-main.c b/src/pk-main.c
+index d372a7456..43727d206 100644
+--- a/src/pk-main.c
++++ b/src/pk-main.c
+@@ -241,6 +241,8 @@ main (int argc, char *argv[])
+ 		helper.loop = loop;
+ 		helper.timer_id = g_timeout_add_seconds (5, (GSourceFunc) pk_main_timeout_check_cb, &helper);
+ 		g_source_set_name_by_id (helper.timer_id, "[PkMain] main poll");
++	} else {
++		helper.timer_id = 0;
+ 	}
+ 
+ 	/* immediatly exit */
+
+From 8c22a0e2f3caf7df8728eec0dbf04d9c3c69f32e Mon Sep 17 00:00:00 2001
+From: Gordon Messmer <gordon.messmer@gmail.com>
+Date: Tue, 17 Jan 2023 08:45:16 -0800
+Subject: [PATCH] Notify PackageKit when dnf installs or removes packages.
+
+---
+ backends/dnf/meson.build          | 13 +++++++++
+ backends/dnf/notify_packagekit.py | 45 +++++++++++++++++++++++++++++++
+ contrib/PackageKit.spec.in        |  2 ++
+ 3 files changed, 60 insertions(+)
+ create mode 100644 backends/dnf/notify_packagekit.py
+
+diff --git a/backends/dnf/meson.build b/backends/dnf/meson.build
+index ac75a1b6c..09718baf1 100644
+--- a/backends/dnf/meson.build
++++ b/backends/dnf/meson.build
+@@ -7,6 +7,19 @@ if meson.get_compiler('c').has_function('hy_query_get_advisory_pkgs', prefix: '#
+    c_args += ['-DHAVE_HY_QUERY_GET_ADVISORY_PKGS']
+ endif
+ 
++python = import('python')
++python_exec = python.find_installation()
++python_package_dir = get_option('pythonpackagedir')
++if python_package_dir == ''
++  python_package_dir = python_exec.get_install_dir()
++endif
++python_package_dir = join_paths(python_package_dir, 'dnf-plugins')
++
++install_data(
++  'notify_packagekit.py',
++  install_dir: join_paths(python_package_dir),
++)
++
+ shared_module(
+   'pk_backend_dnf',
+   'dnf-backend-vendor-@0@.c'.format(get_option('dnf_vendor')),
+diff --git a/backends/dnf/notify_packagekit.py b/backends/dnf/notify_packagekit.py
+new file mode 100644
+index 000000000..3be1fadd8
+--- /dev/null
++++ b/backends/dnf/notify_packagekit.py
+@@ -0,0 +1,45 @@
++# -*- coding: utf-8 -*-
++#
++# Copyright (C) 2022 Gordon Messmer
++#
++# Licensed under the GNU Lesser General Public License Version 2.1
++#
++# This library is free software; you can redistribute it and/or
++# modify it under the terms of the GNU Lesser General Public
++# License as published by the Free Software Foundation; either
++# version 2.1 of the License, or (at your option) any later version.
++#
++# This library is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
++# Lesser General Public License for more details.
++#
++# You should have received a copy of the GNU Lesser General Public
++# License along with this library; if not, write to the Free Software
++# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++
++"""
++Notify packagekitd when packages are installed, updated, or removed. 
++"""
++
++import dbus
++import dnf
++from dnfpluginscore import _
++
++
++class NotifyPackagekit(dnf.Plugin):
++    name = "notify-packagekit"
++
++    def __init__(self, base, cli):
++        super(NotifyPackagekit, self).__init__(base, cli)
++        self.base = base
++        self.cli = cli
++
++    def transaction(self):
++        try:
++            bus = dbus.SystemBus()
++            proxy = bus.get_object('org.freedesktop.PackageKit', '/org/freedesktop/PackageKit')
++            iface = dbus.Interface(proxy, dbus_interface='org.freedesktop.PackageKit')
++            iface.StateHasChanged('posttrans')
++        except:
++            pass

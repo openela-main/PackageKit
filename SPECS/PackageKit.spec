@@ -5,9 +5,9 @@
 
 Summary:   Package management service
 Name:      PackageKit
-Version:   1.2.4
-Release:   2%{?dist}
-License:   GPLv2+ and LGPLv2+
+Version:   1.2.6
+Release:   1%{?dist}
+License:   GPL-2.0-or-later AND LGPL-2.1-or-later
 URL:       http://www.freedesktop.org/software/PackageKit/
 Source0:   http://www.freedesktop.org/software/PackageKit/releases/%{name}-%{version}.tar.xz
 
@@ -16,6 +16,20 @@ Patch0:    PackageKit-0.3.8-Fedora-Vendor.conf.patch
 %elif 0%{?rhel}
 Patch0:    PackageKit-0.3.8-RHEL-Vendor.conf.patch
 %endif
+
+# https://pagure.io/fedora-workstation/issue/233
+# https://github.com/PackageKit/PackageKit/pull/404
+Patch1:    package-remove-password-prompt.patch
+
+# https://github.com/PackageKit/PackageKit/pull/578
+# https://github.com/PackageKit/PackageKit/pull/599
+# https://github.com/PackageKit/PackageKit/pull/600
+Patch2:    shutdown-on-idle.patch
+
+# https://github.com/PackageKit/PackageKit/pull/643
+# Fixes errors like
+# packagekitd[1113]: Failed to load the backend: opening module dnf failed : /usr/lib64/packagekit-backend/libpk_backend_dnf.so: undefined symbol: pk_backend_job_update_details
+Patch3:    0001-packagekitd-Use-export_dynamic-explicitly.patch
 
 BuildRequires: glib2-devel >= %{glib2_version}
 BuildRequires: xmlto
@@ -33,9 +47,11 @@ BuildRequires: pango-devel
 BuildRequires: fontconfig-devel
 BuildRequires: libappstream-glib-devel
 BuildRequires: libdnf-devel >= %{libdnf_version}
+BuildRequires: systemd
 BuildRequires: systemd-devel
 BuildRequires: gobject-introspection-devel
 BuildRequires: bash-completion
+BuildRequires: python3-devel
 
 Requires: %{name}-glib%{?_isa} = %{version}-%{release}
 Requires: glib2%{?_isa} >= %{glib2_version}
@@ -143,6 +159,9 @@ using PackageKit.
 %install
 %meson_install
 
+# Create cache dir
+mkdir -p %{buildroot}%{_localstatedir}/cache/PackageKit
+
 # Create directories for downloaded appstream data
 mkdir -p %{buildroot}%{_localstatedir}/cache/app-info/{icons,xmls}
 
@@ -174,6 +193,7 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %dir %{_localstatedir}/cache/app-info
 %dir %{_localstatedir}/cache/app-info/icons
 %dir %{_localstatedir}/cache/app-info/xmls
+%dir %{_localstatedir}/cache/PackageKit
 %{_datadir}/bash-completion/completions/pkcon
 %dir %{_libdir}/packagekit-backend
 %config(noreplace) %{_sysconfdir}/PackageKit/PackageKit.conf
@@ -200,6 +220,7 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %{_unitdir}/system-update.target.wants/
 %{_libexecdir}/pk-*offline-update
 %{_libdir}/packagekit-backend/libpk_backend_dnf.so
+%pycached %{python3_sitelib}/dnf-plugins/notify_packagekit.py
 
 %files glib
 %{_libdir}/*packagekit-glib2.so.*
@@ -234,6 +255,9 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %{_datadir}/vala/vapi/packagekit-glib2.deps
 
 %changelog
+* Mon Jan 15 2024 Milan Crha <mcrha@redhat.com> - 1.2.6-1
+- Resolves: RHEL-21560 (Rebase PackageKit to 1.2.6 version)
+
 * Mon Aug 09 2021 Mohan Boddu <mboddu@redhat.com> - 1.2.4-2
 - Rebuilt for IMA sigs, glibc 2.34, aarch64 flags
   Related: rhbz#1991688
