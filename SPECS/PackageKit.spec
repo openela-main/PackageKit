@@ -6,7 +6,7 @@
 Summary:   Package management service
 Name:      PackageKit
 Version:   1.2.6
-Release:   1%{?dist}
+Release:   2%{?dist}
 License:   GPL-2.0-or-later AND LGPL-2.1-or-later
 URL:       http://www.freedesktop.org/software/PackageKit/
 Source0:   http://www.freedesktop.org/software/PackageKit/releases/%{name}-%{version}.tar.xz
@@ -30,6 +30,10 @@ Patch2:    shutdown-on-idle.patch
 # Fixes errors like
 # packagekitd[1113]: Failed to load the backend: opening module dnf failed : /usr/lib64/packagekit-backend/libpk_backend_dnf.so: undefined symbol: pk_backend_job_update_details
 Patch3:    0001-packagekitd-Use-export_dynamic-explicitly.patch
+
+# https://github.com/PackageKit/PackageKit/commit/76cfb675fb31acc3ad5595d4380bfff56d2a8697
+# to fix CVE-2026-41651
+Patch4:    0001-Do-not-allow-re-invoking-methods-on-non-new-transact.patch
 
 BuildRequires: glib2-devel >= %{glib2_version}
 BuildRequires: xmlto
@@ -255,6 +259,10 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %{_datadir}/vala/vapi/packagekit-glib2.deps
 
 %changelog
+* Mon Apr 27 2026 Richard Hughes <rhughes@redhat.com> - 1.2.6-2
+- Backport fix for CVE-2026-41651.
+- Resolves: #RHEL-170502
+
 * Mon Jan 15 2024 Milan Crha <mcrha@redhat.com> - 1.2.6-1
 - Resolves: RHEL-21560 (Rebase PackageKit to 1.2.6 version)
 
