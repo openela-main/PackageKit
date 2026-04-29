@@ -14,7 +14,7 @@
 Summary:   Package management service
 Name:      PackageKit
 Version:   1.1.12
-Release:   7%{?dist}
+Release:   8%{?dist}
 License:   GPLv2+ and LGPLv2+
 URL:       http://www.freedesktop.org/software/PackageKit/
 Source0:   http://www.freedesktop.org/software/PackageKit/releases/%{name}-%{version}.tar.xz
@@ -39,6 +39,10 @@ Patch6:    0002-pk-engine-Only-set-polkit-interactive-flag-if-method.patch
 
 # https://bugzilla.redhat.com/show_bug.cgi?id=1814820
 Patch4:    revert-shutdown-on-idle.patch
+
+# https://github.com/PackageKit/PackageKit/commit/76cfb675fb31acc3ad5595d4380bfff56d2a8697
+# to fix CVE-2026-41651
+Patch7:    0001-Do-not-allow-re-invoking-methods-on-non-new-transact.patch
 
 BuildRequires: glib2-devel >= %{glib2_version}
 BuildRequires: xmlto
@@ -340,6 +344,10 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %{_datadir}/vala/vapi/packagekit-glib2.vapi
 
 %changelog
+* Mon Apr 27 2026 Richard Hughes <rhughes@redhat.com> - 1.1.12-8
+- Backport fix for CVE-2026-41651.
+- Resolves: #RHEL-170493
+
 * Mon Apr 24 2023 Richard Hughes <rhughes@redhat.com> - 1.1.12-7
 - Backport changes for passing interactive flag to polkit calls.
 - Resolves: #2177711
