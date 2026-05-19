@@ -261,7 +261,7 @@ systemctl disable packagekit-offline-update.service > /dev/null 2>&1 || :
 %changelog
 * Mon Apr 27 2026 Richard Hughes <rhughes@redhat.com> - 1.2.6-2
 - Backport fix for CVE-2026-41651.
-- Resolves: #RHEL-170502
+- Resolves: #RHEL-170503
 
 * Mon Jan 15 2024 Milan Crha <mcrha@redhat.com> - 1.2.6-1
 - Resolves: RHEL-21560 (Rebase PackageKit to 1.2.6 version)
